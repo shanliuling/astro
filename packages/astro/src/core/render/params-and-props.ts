@@ -60,8 +60,15 @@ export async function getProps(opts: GetParamsAndPropsOptions): Promise<Props> {
 	// The pathname used here comes from the server, which already encoded.
 	// Since we decided to not mess up with encoding anymore, we need to decode them back so the parameters can match
 	// the ones expected from the users
-	const params = getParams(route, pathname);
-	const matchedStaticPath = findPathItemByKey(staticPaths, params, route, logger, trailingSlash);
+	let params = getParams(route, pathname);
+	// If the route pattern didn't match (e.g. pathname has `.html` from buildFormat: 'file'
+	// but the route pattern doesn't include `.html`), try stripping the extension and re-matching.
+	// This preserves routes that intentionally include `.html` (e.g. [slug].html.astro),
+	// since their pattern already matches the full pathname.
+	if (!Object.keys(params).length && pathname.endsWith('.html')) {
+		params = getParams(route, pathname.slice(0, -5));
+	}
+	let matchedStaticPath = findPathItemByKey(staticPaths, params, route, logger, trailingSlash);
 	if (!matchedStaticPath && (serverLike ? route.prerender : true)) {
 		throw new AstroError({
 			...AstroErrorData.NoMatchingStaticPathFound,
@@ -87,16 +94,11 @@ export function getParams(route: RouteData, pathname: string): Params {
 	if (!route.params.length) return {};
 	// The RegExp pattern expects a decoded string, but the pathname is encoded
 	// when the URL contains non-English characters.
-	let path = pathname;
-	// The path could contain `.html` at the end. We remove it so we can correctly the parameters
-	// with the generated keyed parameters.
-	if (pathname.endsWith('.html')) {
-		path = path.slice(0, -5);
-	}
-
 	const paramsMatch =
-		route.pattern.exec(path) ||
-		route.fallbackRoutes.map((fallbackRoute) => fallbackRoute.pattern.exec(path)).find((x) => x);
+		route.pattern.exec(pathname) ||
+		route.fallbackRoutes
+			.map((fallbackRoute) => fallbackRoute.pattern.exec(pathname))
+			.find((x) => x);
 	if (!paramsMatch) return {};
 	const params: Params = {};
 	route.params.forEach((key, i) => {

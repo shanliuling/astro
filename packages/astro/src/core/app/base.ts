@@ -471,8 +471,9 @@ export abstract class BaseApp<P extends Pipeline = AppPipeline> {
 		}
 		let pathname = this.getPathnameFromRequest(request);
 		// In dev, the route may have matched a normalized pathname (after .html stripping).
-		// Apply the same normalization for correct param extraction.
-		if (this.isDev()) {
+		// Apply the same normalization for correct param extraction, but only if .html
+		// is not part of the route definition itself (e.g. [slug].html.astro).
+		if (this.isDev() && !routeHasHtmlExtension(routeData)) {
 			pathname = pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
 		}
 		const defaultStatus = this.getDefaultStatusCode(routeData, pathname);
@@ -857,3 +858,13 @@ export type LogRequestPayload = {
 	 */
 	reqTime: number;
 };
+
+/**
+ * Checks if a route definition itself contains `.html` as part of its segments
+ * (e.g. `[slug].html.astro`), as opposed to `.html` being appended by the build format.
+ */
+function routeHasHtmlExtension(route: RouteData): boolean {
+	return route.segments.some((segment) =>
+		segment.some((part) => !part.dynamic && part.content.includes('.html')),
+	);
+}
