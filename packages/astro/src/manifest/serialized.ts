@@ -41,6 +41,16 @@ export function serializedManifestPlugin({
 	command: 'dev' | 'build';
 	sync: boolean;
 }): Plugin {
+	let encodedKeyPromise: Promise<string> | undefined;
+
+	function getEncodedKey() {
+		encodedKeyPromise ??= (async () => {
+			const key = hasEnvironmentKey() ? await getEnvironmentKey() : await createKey();
+			return encodeKey(key);
+		})();
+		return encodedKeyPromise;
+	}
+
 	function reloadManifest(path: string | null, server: ViteDevServer) {
 		if (path != null && path.startsWith(settings.config.srcDir.pathname)) {
 			const environment = server.environments[ASTRO_VITE_ENVIRONMENT_NAMES.ssr];
@@ -80,7 +90,7 @@ export function serializedManifestPlugin({
 					// See plugin-manifest.ts for full architecture explanation
 					manifestData = `'${MANIFEST_REPLACE}'`;
 				} else {
-					const serialized = await createSerializedManifest(settings);
+					const serialized = await createSerializedManifest(settings, await getEncodedKey());
 					manifestData = JSON.stringify(serialized);
 				}
 				const hasCacheConfig = !!settings.config.experimental?.cache?.provider;
@@ -119,7 +129,10 @@ export function serializedManifestPlugin({
 	};
 }
 
-async function createSerializedManifest(settings: AstroSettings): Promise<SerializedSSRManifest> {
+async function createSerializedManifest(
+	settings: AstroSettings,
+	encodedKey?: string,
+): Promise<SerializedSSRManifest> {
 	let i18nManifest: SSRManifestI18n | undefined;
 	let csp: SSRManifestCSP | undefined;
 	if (settings.config.i18n) {
@@ -182,7 +195,9 @@ async function createSerializedManifest(settings: AstroSettings): Promise<Serial
 		serverIslandBodySizeLimit: settings.config.security?.serverIslandBodySizeLimit
 			? settings.config.security.serverIslandBodySizeLimit
 			: 1024 * 1024, // 1mb default
-		key: await encodeKey(hasEnvironmentKey() ? await getEnvironmentKey() : await createKey()),
+		key:
+			encodedKey ??
+			(await encodeKey(hasEnvironmentKey() ? await getEnvironmentKey() : await createKey())),
 		sessionConfig: sessionConfigToManifest(settings.config.session),
 		cacheConfig: cacheConfigToManifest(
 			settings.config.experimental?.cache,
