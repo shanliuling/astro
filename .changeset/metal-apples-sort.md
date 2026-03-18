@@ -2,4 +2,4 @@
 'astro': patch
 ---
 
-Fixes Cloudflare dev server islands with `prerenderEnvironment: 'node'` by sharing the serialized manifest encryption key across dev environments and routing server island requests through the SSR runtime.
+Fixes an issue where the server islands encryption key wasn't shared across Vite environments, causing props to be encrypted differently. Now Astro shares the same encryption key for all environments. 
