@@ -192,6 +192,21 @@ export default function createVitePluginAstroServer({
 							return;
 						}
 
+						// Skip Vite internal requests (e.g. /@id/, /@fs/, /@vite/, /__vite)
+						// and node_modules requests. These should not be routed through Astro
+						// pages, as they can incorrectly match catch-all routes.
+						if (request.url.startsWith('/@') || request.url.startsWith('/__')) {
+							response.writeHead(404);
+							response.end();
+							return;
+						}
+
+						if (request.url.includes('/node_modules/')) {
+							response.writeHead(404);
+							response.end();
+							return;
+						}
+
 						localStorage.run(request, () => {
 							ssrHandler.handler(request, response);
 						});
